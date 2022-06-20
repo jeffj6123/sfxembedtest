@@ -18,6 +18,8 @@ using CefSharp.Wpf;
 using Newtonsoft.Json.Linq;
 using System.Net.Http;
 using Newtonsoft.Json;
+using Microsoft.ServiceFabric.Client;
+using System.Threading;
 
 namespace WpfApp1
 {
@@ -26,8 +28,13 @@ namespace WpfApp1
     /// </summary>
     public partial class MainWindow : Window
     {
+        public IServiceFabricClient ServiceFabricClient { get; set; }
+
         public MainWindow()
         {
+            this.ServiceFabricClient = new ServiceFabricClientBuilder()
+                .UseEndpoints(new Uri(@"http://localhost:19080"))
+                .BuildAsync().GetAwaiter().GetResult();
             InitializeComponent();
             InitBrowser();
         }
@@ -122,21 +129,30 @@ namespace WpfApp1
                 httpRequestMessage.Content = new StringContent(httpRequest.body.ToString(), Encoding.UTF8, "application/json");
             }
 
-            HttpClient client = new();
-            var response = await client.SendAsync(httpRequestMessage);
-            dynamic jsonObject = new JObject();
-            jsonObject["statusCode"] = response.StatusCode.ToString();
-            jsonObject["statusMessage"] = response.IsSuccessStatusCode;
+            HttpRequestMessage RequestFunc()
+            {
+ 
+                return httpRequestMessage;
+            }
 
-            string responseBody = await response.Content.ReadAsStringAsync();
+            var requestId = Guid.NewGuid().ToString();
+            var url = httpRequest.url;
+
+            var response = await this.ServiceFabricClient.SendAsyncGetResponseAsRawJson(RequestFunc, url, requestId, new CancellationToken());
+
+
+            HttpClient client = new();
+            dynamic jsonObject = new JObject();
+            jsonObject["statusCode"] = "200"; 
+
             try
             {
-                jsonObject["data"] = JObject.Parse(responseBody);
+                jsonObject["data"] = JObject.Parse(response);
 
             }
             catch
             {
-                jsonObject["data"] = JArray.Parse(responseBody);
+                jsonObject["data"] = JArray.Parse(response);
 
             }
             //jsonObject["headers"] = response.Headers.ToHashSet();
